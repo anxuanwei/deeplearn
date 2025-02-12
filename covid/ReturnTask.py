@@ -68,22 +68,9 @@ class Net(nn.Module):
 
         return x
 
-train_file = "./../covid_train/covid.train.csv"
-
-test_file = "./../covid_test/covid.test.csv"
 
 
 
-
-
-train_dataset = CovidDataset(train_file, "train")
-val_dataset = CovidDataset(test_file, "val")
-test_dataset = CovidDataset(train_file, "test")
-
-batch = 8;
-
-train_loader = DataLoader(train_dataset, batch_size=batch, shuffle=True)    #加载dataloader
-val_loader = DataLoader(val_dataset, batch_size=batch, shuffle=True)
 
 # for batchX, batchY in train_loader:
 #     print(batchX, batchY)
@@ -112,7 +99,7 @@ def train_val(model, train_loader, val_loader, device, epochs, optimizer, loss, 
             train_bat_loss.backward()            #梯度回传
             optimizer.step()                   #更新模型
             optimizer.zero_grad()               #梯度清零
-            train_loss += train_bat_loss.item()     #放在gpu上无法相加，先放在cpu上，再用item取出数值
+            train_loss += train_bat_loss.cpu().item()     #放在gpu上无法相加，先放在cpu上，再用item取出数值
 
         plt_train_loss.append(train_loss / train_loader.__len__())          #一批的trainloss加到总的loss里
 
@@ -149,6 +136,18 @@ config = {
     "momentum" : 0.9,
     "save_path" : "./../covid_result/result.pth",
 }
+
+train_file = "./../covid_train/covid.train.csv"
+test_file = "./../covid_test/covid.test.csv"
+
+train_dataset = CovidDataset(train_file, "train")
+val_dataset = CovidDataset(test_file, "val")
+test_dataset = CovidDataset(train_file, "test")
+
+batch = 8;
+
+train_loader = DataLoader(train_dataset, batch_size=batch, shuffle=True)    #加载dataloader
+val_loader = DataLoader(val_dataset, batch_size=batch, shuffle=True)
 
 device = "cude" if torch.cuda.is_available() else "cpu"
 print(device)
