@@ -20,29 +20,32 @@ from torch.utils.data import Dataset, DataLoader
 class CovidDataset(Dataset):
 
     def __init__(self, filepath, mode):
-        self.mode = mode;
+
         with open(filepath, mode='r') as f:
             reader = csv.reader(f)
             ori_data = list(reader)
             #去掉第一行（表头）                  [行,列]
             csv_data = np.array(ori_data[1:])[:,1:].astype(float)
-        if mode == "train":
-            indices = [i for i in range(len(csv_data)) if i % 5]
-            self.y = torch.tensor(csv_data[indices,-1])
-        elif mode == "val":
-            indices = [i for i in range(len(csv_data)) if i % 5 == 0]
-            self.y = torch.tensor(csv_data[indices, -1])
-        elif mode == "test":
-            indices = [i for i in range(len(csv_data))]
-        # self.data = torch.tensor(csv_data[indices,:-1])    #取出来的数据放进张量里
-        data = torch.tensor(csv_data[indices, :-1])
-        self.data = (data - data.mean(dim=0, keepdim=True)) / data.std(dim=0, keepdim=True) #减去平均值，除以标准差
+            if mode == "train":
+                indices = [i for i in range(len(csv_data)) if i % 5]
+                self.y = torch.tensor(csv_data[indices,-1])
+            elif mode == "val":
+                indices = [i for i in range(len(csv_data)) if i % 5 == 0]
+                self.y = torch.tensor(csv_data[indices, -1])
+            elif mode == "test":
+                indices = [i for i in range(len(csv_data))]
+
+            # self.data = torch.tensor(csv_data[indices,:-1])    #取出来的数据放进张量里
+            data = torch.tensor(csv_data[indices, :-1])
+            self.data = (data - data.mean(dim=0, keepdim=True)) / data.std(dim=0, keepdim=True) #减去平均值，除以标准差
+            self.mode = mode;
 
     def __getitem__(self, index):
-        if self.mode == "train":
-            return self.data[index].float(), self.y[index].float()  #转为float减少消耗
-        else:
+        if self.mode == "test":
             return self.data[index].float()
+        else:
+            return self.data[index].float(), self.y[index].float()  # 转为float减少消耗
+
 
     def __len__(self):
         return len(self.data)
@@ -99,7 +102,7 @@ def train_val(model, train_loader, val_loader, device, epochs, optimizer, loss, 
             train_bat_loss.backward()            #梯度回传
             optimizer.step()                   #更新模型
             optimizer.zero_grad()               #梯度清零
-            train_loss += train_bat_loss.cpu().item()     #放在gpu上无法相加，先放在cpu上，再用item取出数值
+            train_loss += train_bat_loss.detach().cpu().item()     #放在gpu上无法相加，先放在cpu上，再用item取出数值
 
         plt_train_loss.append(train_loss / train_loader.__len__())          #一批的trainloss加到总的loss里
 
@@ -118,8 +121,8 @@ def train_val(model, train_loader, val_loader, device, epochs, optimizer, loss, 
             torch.save(model.state_dict(), savepath)
             min_val_loss = val_loss
 
-        print("[%03d/%03d] %2.2f sec(s) Trainloss: %.6f | Valloss: %.6f |"\
-              ,epoch,epochs,time.time()-start_time,plt_train_loss[-1],plt_val_loss[-1])
+        print(f"[{epoch:03d}/{epochs:03d}] {time.time() - start_time:2.2f} sec(s) Trainloss: {plt_train_loss[-1]:.6f} | Valloss: {plt_val_loss[-1]:.6f} |")
+
 
 
 
@@ -130,9 +133,9 @@ def train_val(model, train_loader, val_loader, device, epochs, optimizer, loss, 
 
 
 config = {
-    "lr" : 0.01,
+    "lr" : 0.0001,
     "batch_size" : 32,
-    "epochs" : 10,
+    "epochs" : 1000,
     "momentum" : 0.9,
     "save_path" : "./../covid_result/result.pth",
 }
@@ -141,8 +144,8 @@ train_file = "./../covid_train/covid.train.csv"
 test_file = "./../covid_test/covid.test.csv"
 
 train_dataset = CovidDataset(train_file, "train")
-val_dataset = CovidDataset(test_file, "val")
-test_dataset = CovidDataset(train_file, "test")
+val_dataset = CovidDataset(train_file, "val")
+test_dataset = CovidDataset(test_file, "test")
 
 batch = 8;
 
