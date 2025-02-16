@@ -4,7 +4,12 @@ import torch
 import numpy as np
 import pandas as pd
 import csv
+# import os
+# os.environ["KMP_DUPLICATE_LIB_DIR"]="TRUE"  #解决plt报错
+# os.environ["MKL_THREADING_LAYER"] = "GNU"
 
+
+from matplotlib import pyplot as plt
 from torch import nn, optim
 from torch.utils.data import Dataset, DataLoader
 
@@ -121,8 +126,40 @@ def train_val(model, train_loader, val_loader, device, epochs, optimizer, loss, 
             torch.save(model.state_dict(), savepath)
             min_val_loss = val_loss
 
-        print(f"[{epoch:03d}/{epochs:03d}] {time.time() - start_time:2.2f} sec(s) Trainloss: {plt_train_loss[-1]:.6f} | Valloss: {plt_val_loss[-1]:.6f} |")
+        print(f"[{epoch+1:03d}/{epochs:03d}] {time.time() - start_time:2.2f} sec(s) Trainloss: {plt_train_loss[-1]:.6f} | Valloss: {plt_val_loss[-1]:.6f} |")
 
+    # # 代码可视化，画loss的变化
+    # plt.plot(plt_train_loss)
+    # plt.plot(plt_val_loss)
+    # plt.title(‘Loss’)           #标题
+    # # plt.legend("Trainloss","Valloss")       #图例
+    # plt.show()
+
+    # plt.plot(plt_train_loss)              # 画图， 向图中放入训练loss数据
+    # plt.plot(plt_val_loss)                # 画图， 向图中放入训练loss数据
+    # plt.title('loss')                      # 画图， 标题
+    # plt.legend(['train', 'val'])             # 画图， 图例
+    # plt.show()                                 # 画图， 展示
+
+
+def evaluate(save_path, device, test_loader, rel_path):
+    model = torch.load(save_path).to(device)
+    rel = []
+    model.eval()
+
+    with torch.no_grad():
+        for x in test_loader:
+            pred = model(x.to(device))
+            rel.append(pred.cpu().item())
+
+    print(rel)
+
+    with open(rel_path, "w") as f:
+        csv_writer = csv.writer(f)
+        csv_writer.writerow(["id", "tested_positive"])
+        for i in range(len(rel)):
+            csv_writer.writerow([str(i), str(rel[i])])
+        print("file has been saved in " + rel_path)
 
 
 
@@ -133,11 +170,12 @@ def train_val(model, train_loader, val_loader, device, epochs, optimizer, loss, 
 
 
 config = {
-    "lr" : 0.0001,
+    "lr" : 0.001,
     "batch_size" : 32,
-    "epochs" : 1000,
+    "epochs" : 10,
     "momentum" : 0.9,
     "save_path" : "./../covid_result/result.pth",
+    "rel_path" : "./pred.csv",
 }
 
 train_file = "./../covid_train/covid.train.csv"
@@ -151,6 +189,7 @@ batch = 8;
 
 train_loader = DataLoader(train_dataset, batch_size=batch, shuffle=True)    #加载dataloader
 val_loader = DataLoader(val_dataset, batch_size=batch, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
 device = "cude" if torch.cuda.is_available() else "cpu"
 print(device)
@@ -160,6 +199,8 @@ loss = nn.MSELoss()
 optimizer = optim.SGD(model.parameters(), lr=config["lr"], momentum=config["momentum"])
 
 train_val(model, train_loader, val_loader, device, config["epochs"], optimizer, loss, config["save_path"])
+
+evaluate(config["save_path"], device, test_loader, config["rel_path"])
 
 
 
