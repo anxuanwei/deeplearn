@@ -32,16 +32,20 @@ class CovidDataset(Dataset):
             #去掉第一行（表头）                  [行,列]
             csv_data = np.array(ori_data[1:])[:,1:].astype(float)
             if mode == "train":
+                #y是最后一列做loss用的，data就是前面的参数。如果test里面少取最后一列当然会有问题
                 indices = [i for i in range(len(csv_data)) if i % 5]
                 self.y = torch.tensor(csv_data[indices,-1])
+                data = torch.tensor(csv_data[indices, :-1])
             elif mode == "val":
                 indices = [i for i in range(len(csv_data)) if i % 5 == 0]
                 self.y = torch.tensor(csv_data[indices, -1])
+                data = torch.tensor(csv_data[indices, :-1])
             elif mode == "test":
                 indices = [i for i in range(len(csv_data))]
+                data = torch.tensor(csv_data[indices])
 
             # self.data = torch.tensor(csv_data[indices,:-1])    #取出来的数据放进张量里
-            data = torch.tensor(csv_data[indices, :-1])
+
             self.data = (data - data.mean(dim=0, keepdim=True)) / data.std(dim=0, keepdim=True) #减去平均值，除以标准差
             self.mode = mode;
 
@@ -85,7 +89,7 @@ class Net(nn.Module):
 
 
 def train_val(model, train_loader, val_loader, device, epochs, optimizer, loss, savepath):
-    model = model.to(device)
+    model = model.to(device)        #放在装置上
 
     plt_train_loss = []
     plt_val_loss = []
@@ -142,8 +146,11 @@ def train_val(model, train_loader, val_loader, device, epochs, optimizer, loss, 
     # plt.show()                                 # 画图， 展示
 
 
-def evaluate(save_path, device, test_loader, rel_path):
-    model = torch.load(save_path).to(device)
+def evaluate(model, save_path, device, test_set, rel_path):
+    #savepath中的模型以字典形式存储，而model是一个类，所以要将类传入再以字典的形式初始化这个类
+    model.load_state_dict(torch.load(save_path, weights_only=False))  # 将状态字典加载到模型中
+    model = model.to(device)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
     rel = []
     model.eval()
 
@@ -151,7 +158,6 @@ def evaluate(save_path, device, test_loader, rel_path):
         for x in test_loader:
             pred = model(x.to(device))
             rel.append(pred.cpu().item())
-
     print(rel)
 
     with open(rel_path, "w") as f:
@@ -189,7 +195,7 @@ batch = 8;
 
 train_loader = DataLoader(train_dataset, batch_size=batch, shuffle=True)    #加载dataloader
 val_loader = DataLoader(val_dataset, batch_size=batch, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
 
 device = "cude" if torch.cuda.is_available() else "cpu"
 print(device)
@@ -200,7 +206,7 @@ optimizer = optim.SGD(model.parameters(), lr=config["lr"], momentum=config["mome
 
 train_val(model, train_loader, val_loader, device, config["epochs"], optimizer, loss, config["save_path"])
 
-evaluate(config["save_path"], device, test_loader, config["rel_path"])
+evaluate(model, config["save_path"], device, test_dataset, config["rel_path"])
 
 
 
